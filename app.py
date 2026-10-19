@@ -25,8 +25,33 @@ from matching import find_matches, find_all_matches, get_match_label
 # APPLICATION FACTORY
 # ===========================================================================
 
+class VercelPathMiddleware:
+    """
+    WSGI middleware that restores the original requested URL path on Vercel.
+    Vercel internal rewrites route requests to /api/index or /api/index.py
+    and pass the original user-requested path in the X-Matched-Path header.
+    """
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        matched = environ.get("HTTP_X_MATCHED_PATH")
+        if matched:
+            environ["PATH_INFO"] = matched
+        elif environ.get("PATH_INFO", "").startswith("/api/index.py"):
+            rest = environ["PATH_INFO"][len("/api/index.py"):]
+            environ["PATH_INFO"] = rest if rest.startswith("/") else ("/" + rest if rest else "/")
+        elif environ.get("PATH_INFO", "").startswith("/api/index"):
+            rest = environ["PATH_INFO"][len("/api/index"):]
+            environ["PATH_INFO"] = rest if rest.startswith("/") else ("/" + rest if rest else "/")
+        return self.wsgi_app(environ, start_response)
+
+
 app = Flask(__name__, instance_relative_config=False)
+app.wsgi_app = VercelPathMiddleware(app.wsgi_app)
+app.url_map.strict_slashes = False
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-in-production")
+
 
 # ------------------------------------------------------------------
 # Upload configuration

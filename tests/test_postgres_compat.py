@@ -210,6 +210,23 @@ class TestPostgresCompatibility(unittest.TestCase):
             if orig_url is not None:
                 os.environ["DATABASE_URL"] = orig_url
 
+    def test_vercel_path_middleware_restores_path(self):
+        """Verify that VercelPathMiddleware restores original path from X-Matched-Path or rewrites."""
+        from app import app
+        client = app.test_client()
+
+        # When Vercel sets X-Matched-Path header:
+        resp = client.get('/api/index', headers={'X-Matched-Path': '/'})
+        self.assertEqual(resp.status_code, 200)
+
+        # When Vercel routes without header:
+        resp2 = client.get('/api/index')
+        self.assertEqual(resp2.status_code, 200)
+
+        # Sub-route through rewrite:
+        resp3 = client.get('/api/index', headers={'X-Matched-Path': '/about'})
+        self.assertEqual(resp3.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()
