@@ -6,6 +6,12 @@
   <h2 style="font-size: 3rem; color: var(--border); margin-bottom: 0.5rem;">500</h2>
   <h3>Something went wrong</h3>
   <p>An internal error occurred. Please try again or contact the administrator.</p>
+  {% if db_error %}
+  <div style="max-width: 620px; margin: 1.5rem auto; padding: 1rem; background-color: #fee2e2; border: 1px solid #f87171; border-radius: 6px; color: #991b1b; text-align: left; font-size: 0.9rem;">
+    <strong>Database Connection Error:</strong>
+    <p style="margin: 0.5rem 0 0; word-break: break-word;">{{ db_error }}</p>
+  </div>
+  {% endif %}
   <div class="flex gap-1 mt-2" style="justify-content: center;">
     <a href="{{ url_for('index') }}" class="btn btn-primary">Go to Dashboard</a>
   </div>

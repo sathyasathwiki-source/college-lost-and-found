@@ -3,30 +3,262 @@ database.py
 ===========
 Database initialization and all database helper functions.
 
-Uses SQLite through Python's built-in sqlite3 module.
+Supports persistent PostgreSQL databases (configured via DATABASE_URL or POSTGRES_URL)
+for cloud serverless deployments (such as Vercel), with seamless fallback to SQLite
+for local development and automated testing.
 All queries use parameterized statements to prevent SQL injection.
 """
 
-import sqlite3
 import os
-from datetime import datetime
+import re
+import sqlite3
+from datetime import datetime, date
 
-# Path to the SQLite database file
-DB_PATH = os.path.join(os.path.dirname(__file__), "instance", "app.db")
+
+class DatabaseConnectionError(Exception):
+    """Raised when connecting to or initializing the database fails."""
+    pass
+
+
+def get_db_url():
+    """
+    Return the persistent PostgreSQL database connection URL from the environment.
+    Supports both DATABASE_URL and POSTGRES_URL.
+    Normalizes 'postgres://' to 'postgresql://'.
+    """
+    url = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
+    if url:
+        url = url.strip()
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://"):]
+    return url
+
+
+def is_postgres():
+    """
+    Return True if PostgreSQL should be used.
+    In testing environments (TESTING=1) or when no DATABASE_URL is set,
+    falls back to SQLite.
+    """
+    if os.environ.get("TESTING") == "1":
+        return False
+    return bool(get_db_url())
+
+
+def get_default_db_path():
+    """
+    Determine a safe default path for SQLite.
+    Does not depend on a rigid, unavailable directory in serverless environments.
+    """
+    custom_path = os.environ.get("DB_PATH") or os.environ.get("SQLITE_DB_PATH")
+    if custom_path:
+        return custom_path
+    if os.environ.get("VERCEL"):
+        # Filesystems outside /tmp are read-only on Vercel
+        return os.path.join("/tmp", "app.db")
+    return os.path.join(os.path.dirname(__file__), "instance", "app.db")
+
+
+# Path to the SQLite database file (can be overridden by tests or env)
+DB_PATH = get_default_db_path()
+
+
+def _format_val(v):
+    """Convert datetime/date objects to string formatted like SQLite/Jinja expect."""
+    if isinstance(v, (datetime, date)):
+        return v.strftime("%Y-%m-%d %H:%M:%S")
+    return v
+
+
+class RowDict(dict):
+    """
+    A dict subclass that also supports access by integer index (like sqlite3.Row).
+    Supports:
+      - row['col_name']
+      - row[0]
+      - dict(row)
+    """
+    def __init__(self, mapping=None, indexed=None):
+        super().__init__(mapping or {})
+        self._indexed = list(indexed) if indexed is not None else list(self.values())
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._indexed[key]
+        return super().__getitem__(key)
+
+
+class PostgresCursorWrapper:
+    """
+    Wraps a psycopg2 cursor to provide sqlite3-compatible behaviors:
+      - Automatically translates SQL parameter placeholders from '?' to '%s'
+      - Converts 'LIKE' to 'ILIKE' for case-insensitive keyword searching
+      - Handles RETURNING id for INSERT statements to populate cursor.lastrowid
+      - Formats fetched rows into RowDict with string timestamps
+    """
+    def __init__(self, raw_cursor):
+        self._cursor = raw_cursor
+        self.lastrowid = None
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+    def execute(self, sql, params=None):
+        # 1. Parameter placeholder translation
+        converted_sql = sql.replace("?", "%s")
+
+        # 2. Case-insensitive search keyword replacement
+        converted_sql = re.sub(r"\bLIKE\b", "ILIKE", converted_sql)
+
+        # 3. Handle INSERT statements with auto-increment ID
+        trimmed = converted_sql.strip()
+        is_insert = trimmed.upper().startswith("INSERT INTO")
+        has_returning = "RETURNING" in trimmed.upper()
+
+        if is_insert and not has_returning:
+            sql_returning = trimmed.rstrip("; \t\n") + " RETURNING id"
+            try:
+                if params is not None:
+                    self._cursor.execute(sql_returning, tuple(params))
+                else:
+                    self._cursor.execute(sql_returning)
+                row = self._cursor.fetchone()
+                if row:
+                    self.lastrowid = row[0]
+                return self
+            except Exception:
+                # If table does not have an 'id' column or RETURNING is unsupported,
+                # fall through to standard execute
+                pass
+
+        if params is not None:
+            self._cursor.execute(converted_sql, tuple(params))
+        else:
+            self._cursor.execute(converted_sql)
+        return self
+
+    def fetchone(self):
+        if not self._cursor.description:
+            return None
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        return self._format_row(row)
+
+    def fetchall(self):
+        if not self._cursor.description:
+            return []
+        rows = self._cursor.fetchall()
+        return [self._format_row(r) for r in rows]
+
+    def _format_row(self, raw_tuple):
+        if not self._cursor.description:
+            return raw_tuple
+        col_names = [col[0] for col in self._cursor.description]
+        formatted = [_format_val(v) for v in raw_tuple]
+        mapping = dict(zip(col_names, formatted))
+        return RowDict(mapping, formatted)
+
+    def close(self):
+        self._cursor.close()
+
+    def __iter__(self):
+        return iter(self.fetchall())
+
+
+class PostgresConnectionWrapper:
+    """
+    Wraps a psycopg2 connection to provide sqlite3.Connection compatible interface:
+      - conn.execute(sql, params)
+      - conn.cursor()
+      - conn.commit()
+      - conn.rollback()
+      - conn.close()
+    """
+    def __init__(self, raw_conn):
+        self._conn = raw_conn
+
+    def cursor(self):
+        return PostgresCursorWrapper(self._conn.cursor())
+
+    def execute(self, sql, params=None):
+        cur = self.cursor()
+        cur.execute(sql, params)
+        return cur
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self.rollback()
+        else:
+            self.commit()
+        self.close()
 
 
 def get_connection():
     """
-    Open and return a connection to the SQLite database.
+    Open and return a connection to the database.
 
-    row_factory = sqlite3.Row makes rows accessible as dictionaries,
-    so we can write row['id'] instead of row[0].
+    If DATABASE_URL or POSTGRES_URL is configured (and not in testing mode),
+    opens a connection to the persistent PostgreSQL database.
+    Otherwise, opens a connection to the local SQLite database.
     """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    # Enforce foreign-key constraints (SQLite disables them by default)
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    if is_postgres():
+        try:
+            import psycopg2
+        except ImportError as exc:
+            raise DatabaseConnectionError(
+                "PostgreSQL driver 'psycopg2' is not installed. "
+                "Please install 'psycopg2-binary'."
+            ) from exc
+
+        db_url = get_db_url()
+        try:
+            raw_conn = psycopg2.connect(db_url)
+            return PostgresConnectionWrapper(raw_conn)
+        except Exception as exc:
+            raise DatabaseConnectionError(
+                f"Failed to connect to PostgreSQL database: {exc}. "
+                "Please check your DATABASE_URL in Vercel project environment variables."
+            ) from exc
+    else:
+        # Check if running on Vercel without DATABASE_URL
+        if os.environ.get("VERCEL") and not os.environ.get("TESTING"):
+            raise DatabaseConnectionError(
+                "DATABASE_URL environment variable is missing in the Vercel serverless environment. "
+                "Vercel serverless filesystems are read-only and ephemeral, so persistent SQLite storage is unavailable. "
+                "Please configure DATABASE_URL in your Vercel Project Settings -> Environment Variables."
+            )
+
+        try:
+            db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+            if db_dir:
+                try:
+                    os.makedirs(db_dir, exist_ok=True)
+                except OSError:
+                    pass
+
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            # Enforce foreign-key constraints (SQLite disables them by default)
+            conn.execute("PRAGMA foreign_keys = ON")
+            return conn
+        except Exception as exc:
+            raise DatabaseConnectionError(
+                f"Failed to connect to SQLite database at '{DB_PATH}': {exc}"
+            ) from exc
 
 
 def init_db():
@@ -34,77 +266,124 @@ def init_db():
     Create all tables and indexes if they do not already exist.
     Called once when the Flask application starts.
     """
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    if not is_postgres():
+        db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+        if db_dir:
+            try:
+                os.makedirs(db_dir, exist_ok=True)
+            except OSError:
+                pass
 
     conn = get_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    # ------------------------------------------------------------------
-    # Table: items
-    # Stores both lost and found item reports.
-    # The `type` column distinguishes 'lost' from 'found'.
-    # ------------------------------------------------------------------
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS items (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            name            TEXT    NOT NULL,
-            category        TEXT    NOT NULL,
-            description     TEXT,
-            location        TEXT    NOT NULL,
-            event_date      TEXT    NOT NULL,
-            type            TEXT    NOT NULL CHECK(type IN ('lost','found')),
-            status          TEXT    NOT NULL DEFAULT 'active'
-                                    CHECK(status IN ('active','verification_pending','returned','closed')),
-            image_filename  TEXT,
-            contact_name    TEXT,
-            contact_info    TEXT,
-            created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
-            returned_at     TEXT
-        )
-    """)
+        if is_postgres():
+            # ----------------------------------------------------------
+            # PostgreSQL Tables & Schema
+            # ----------------------------------------------------------
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS items (
+                    id              SERIAL PRIMARY KEY,
+                    name            TEXT    NOT NULL,
+                    category        TEXT    NOT NULL,
+                    description     TEXT,
+                    location        TEXT    NOT NULL,
+                    event_date      TEXT    NOT NULL,
+                    type            TEXT    NOT NULL CHECK(type IN ('lost','found')),
+                    status          TEXT    NOT NULL DEFAULT 'active'
+                                            CHECK(status IN ('active','verification_pending','returned','closed')),
+                    image_filename  TEXT,
+                    contact_name    TEXT,
+                    contact_info    TEXT,
+                    created_at      TEXT    NOT NULL DEFAULT TO_CHAR(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS'),
+                    returned_at     TEXT
+                )
+            """)
 
-    # ------------------------------------------------------------------
-    # Table: collection_requests
-    # Each row represents one request from a student to collect an item.
-    # ------------------------------------------------------------------
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS collection_requests (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_id         INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-            requester_name  TEXT    NOT NULL,
-            requester_contact TEXT  NOT NULL,
-            description     TEXT,
-            request_date    TEXT    NOT NULL DEFAULT (datetime('now')),
-            status          TEXT    NOT NULL DEFAULT 'pending'
-                                    CHECK(status IN ('pending','approved','rejected'))
-        )
-    """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS collection_requests (
+                    id              SERIAL PRIMARY KEY,
+                    item_id         INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                    requester_name  TEXT    NOT NULL,
+                    requester_contact TEXT  NOT NULL,
+                    description     TEXT,
+                    request_date    TEXT    NOT NULL DEFAULT TO_CHAR(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS'),
+                    status          TEXT    NOT NULL DEFAULT 'pending'
+                                            CHECK(status IN ('pending','approved','rejected'))
+                )
+            """)
 
-    # ------------------------------------------------------------------
-    # Table: activity_logs
-    # Tracks important events for audit and activity-feed purposes.
-    # ------------------------------------------------------------------
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS activity_logs (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_id     INTEGER REFERENCES items(id) ON DELETE SET NULL,
-            action      TEXT    NOT NULL,
-            details     TEXT,
-            created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
-        )
-    """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS activity_logs (
+                    id          SERIAL PRIMARY KEY,
+                    item_id     INTEGER REFERENCES items(id) ON DELETE SET NULL,
+                    action      TEXT    NOT NULL,
+                    details     TEXT,
+                    created_at  TEXT    NOT NULL DEFAULT TO_CHAR(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS')
+                )
+            """)
+        else:
+            # ----------------------------------------------------------
+            # SQLite Tables & Schema
+            # ----------------------------------------------------------
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS items (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name            TEXT    NOT NULL,
+                    category        TEXT    NOT NULL,
+                    description     TEXT,
+                    location        TEXT    NOT NULL,
+                    event_date      TEXT    NOT NULL,
+                    type            TEXT    NOT NULL CHECK(type IN ('lost','found')),
+                    status          TEXT    NOT NULL DEFAULT 'active'
+                                            CHECK(status IN ('active','verification_pending','returned','closed')),
+                    image_filename  TEXT,
+                    contact_name    TEXT,
+                    contact_info    TEXT,
+                    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+                    returned_at     TEXT
+                )
+            """)
 
-    # ------------------------------------------------------------------
-    # Indexes — speed up common filter queries
-    # ------------------------------------------------------------------
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_type     ON items(type)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_status   ON items(status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_created  ON items(created_at DESC)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_requests_item  ON collection_requests(item_id)")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS collection_requests (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_id         INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                    requester_name  TEXT    NOT NULL,
+                    requester_contact TEXT  NOT NULL,
+                    description     TEXT,
+                    request_date    TEXT    NOT NULL DEFAULT (datetime('now')),
+                    status          TEXT    NOT NULL DEFAULT 'pending'
+                                            CHECK(status IN ('pending','approved','rejected'))
+                )
+            """)
 
-    conn.commit()
-    conn.close()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS activity_logs (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_id     INTEGER REFERENCES items(id) ON DELETE SET NULL,
+                    action      TEXT    NOT NULL,
+                    details     TEXT,
+                    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+                )
+            """)
+
+        # --------------------------------------------------------------
+        # Indexes — speed up common queries (same for both dialects)
+        # --------------------------------------------------------------
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_type     ON items(type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_status   ON items(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_category ON items(category)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_created  ON items(created_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_requests_item  ON collection_requests(item_id)")
+
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        raise DatabaseConnectionError(f"Failed to initialize database schema: {exc}") from exc
+    finally:
+        conn.close()
 
 
 # ===========================================================================
@@ -428,11 +707,12 @@ def update_request_status(request_id, new_status):
 
         # Update item status based on decision
         if new_status == 'approved':
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             conn.execute("""
                 UPDATE items SET status = 'returned',
-                                 returned_at = datetime('now')
+                                 returned_at = ?
                 WHERE id = ?
-            """, (req['item_id'],))
+            """, (now_str, req['item_id']))
             conn.execute("""
                 INSERT INTO activity_logs (item_id, action, details)
                 VALUES (?, ?, ?)

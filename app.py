@@ -31,7 +31,11 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-in-pr
 # ------------------------------------------------------------------
 # Upload configuration
 # ------------------------------------------------------------------
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "static", "uploads")
+if os.environ.get("VERCEL"):
+    UPLOAD_FOLDER = os.path.join("/tmp", "uploads")
+else:
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "static", "uploads")
+
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 MAX_CONTENT_LENGTH = 5 * 1024 * 1024   # 5 MB limit
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -59,10 +63,23 @@ ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "admin123")
 # STARTUP: initialize DB and rebuild in-memory data structures
 # ===========================================================================
 
+_initialized = False
+
+
 def init_app():
     """Initialize database and in-memory data structures on startup."""
+    global _initialized
     db.init_db()
     _rebuild_data_structures()
+    _initialized = True
+
+
+@app.before_request
+def ensure_initialized():
+    """Ensure database schema and cache are initialized in serverless environments."""
+    global _initialized
+    if not _initialized:
+        init_app()
 
 
 def _rebuild_data_structures():
@@ -185,9 +202,16 @@ def file_too_large(e):
     return redirect(request.referrer or url_for("index"))
 
 
+@app.errorhandler(db.DatabaseConnectionError)
+def database_connection_error(e):
+    app.logger.error(f"Database connection error: {e}")
+    return render_template("errors/500.html", db_error=str(e)), 500
+
+
 @app.errorhandler(500)
 def internal_error(e):
     return render_template("errors/500.html"), 500
+
 
 
 # ===========================================================================
