@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Report an Item{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Report an Item</h1>
+  <p>Choose whether you have lost something or found something on campus.</p>
+</div>
+
+<div class="form-row" style="gap: 1.5rem; max-width: 700px;">
+
+  <!-- Lost -->
+  <div class="card">
+    <div class="card-body text-center" style="padding: 2rem 1.5rem;">
+      <div style="font-size: 2rem; margin-bottom: 0.75rem; opacity: 0.7;">📋</div>
+      <h2 style="margin-bottom: 0.5rem; font-size: 1.1rem;">I Lost Something</h2>
+      <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1.25rem;">
+        Report a belonging you have lost on campus. Other students and security
+        staff will be able to see your report.
+      </p>
+      <a href="{{ url_for('report_lost') }}" class="btn btn-primary w-full"
+         style="justify-content: center;">Report Lost Item</a>
+    </div>
+  </div>
+
+  <!-- Found -->
+  <div class="card">
+    <div class="card-body text-center" style="padding: 2rem 1.5rem;">
+      <div style="font-size: 2rem; margin-bottom: 0.75rem; opacity: 0.7;">📦</div>
+      <h2 style="margin-bottom: 0.5rem; font-size: 1.1rem;">I Found Something</h2>
+      <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1.25rem;">
+        Register an item you have found. This helps the rightful owner
+        locate and collect their belonging.
+      </p>
+      <a href="{{ url_for('report_found') }}" class="btn btn-success w-full"
+         style="justify-content: center;">Report Found Item</a>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

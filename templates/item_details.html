@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Item #{{ item.id }} — {{ item.name }}{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb -->
+<nav aria-label="Breadcrumb" style="margin-bottom: 1rem; font-size: 0.82rem; color: var(--text-muted);">
+  <a href="{{ url_for('index') }}">Dashboard</a> &rsaquo;
+  {% if item.type == 'lost' %}
+    <a href="{{ url_for('lost_items') }}">Lost Items</a>
+  {% else %}
+    <a href="{{ url_for('found_items') }}">Found Items</a>
+  {% endif %}
+  &rsaquo; {{ item.name }}
+</nav>
+
+<div class="item-detail-layout">
+
+  <!-- Left column: main details -->
+  <div>
+    <div class="card mb-2">
+      <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>
+          <span class="badge badge-{{ item.type }}" style="margin-right: 6px;">
+            {{ item.type.title() }}
+          </span>
+          Item #{{ item.id }}
+        </span>
+        <span class="badge badge-{{ item.status }}">
+          {{ item.status.replace('_', ' ').title() }}
+        </span>
+      </div>
+      <div class="card-body">
+        <h1 style="margin-bottom: 1.25rem; font-size: 1.4rem;">{{ item.name }}</h1>
+
+        <!-- Image -->
+        {% if item.image_filename %}
+        <div class="item-detail-image mb-2">
+          <img src="{{ url_for('uploaded_file', filename=item.image_filename) }}"
+               alt="{{ item.name }}">
+        </div>
+        {% endif %}
+
+        <!-- Detail table -->
+        <table class="detail-table">
+          <tr>
+            <th>Category</th>
+            <td>{{ item.category }}</td>
+          </tr>
+          <tr>
+            <th>Description</th>
+            <td>{{ item.description or '—' }}</td>
+          </tr>
+          <tr>
+            <th>{{ 'Last seen at' if item.type == 'lost' else 'Found at' }}</th>
+            <td>{{ item.location }}</td>
+          </tr>
+          <tr>
+            <th>{{ 'Date Lost' if item.type == 'lost' else 'Date Found' }}</th>
+            <td>{{ item.event_date }}</td>
+          </tr>
+          <tr>
+            <th>Reported On</th>
+            <td>{{ item.created_at[:10] }}</td>
+          </tr>
+          {% if item.returned_at %}
+          <tr>
+            <th>Returned On</th>
+            <td>{{ item.returned_at[:10] }}</td>
+          </tr>
+          {% endif %}
+          {% if is_admin %}
+          <tr>
+            <th>Contact Name</th>
+            <td>{{ item.contact_name or '—' }}</td>
+          </tr>
+          <tr>
+            <th>Contact Info</th>
+            <td>{{ item.contact_info or '—' }}</td>
+          </tr>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+
+    <!-- Possible Matches -->
+    {% if possible_matches %}
+    <div class="card mb-2">
+      <div class="card-header">
+        Possible Matches
+        <small class="text-muted" style="font-weight: 400;">
+          — {{ possible_matches|length }} possible match{{ 'es' if possible_matches|length != 1 else '' }} found
+        </small>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-warning mb-2" style="font-size: 0.82rem;">
+          These are <strong>possible</strong> matches based on keywords. Ownership must be
+          verified before an item is handed over. The system does not use AI or machine learning.
+        </div>
+
+        {% for m in possible_matches %}
+        <div class="match-card">
+          <div class="flex items-center justify-between gap-1 mb-1">
+            <a href="{{ url_for('item_details', item_id=m.found_item.id) }}"
+               style="font-weight: 600; font-size: 0.9rem;">
+              {{ m.found_item.name }}
+              <small class="text-muted">(#{{ m.found_item.id }})</small>
+            </a>
+            <span class="match-score
+              {{ 'score-strong' if m.score >= 80
+                 else 'score-moderate' if m.score >= 50
+                 else 'score-weak' }}">
+              {{ m.label }}
+            </span>
+          </div>
+          <div class="item-card-meta mb-1">
+            {{ m.found_item.category }} &mdash; {{ m.found_item.location }}
+          </div>
+          {% if m.reasons %}
+          <ul class="match-reasons">
+            {% for reason in m.reasons %}
+              <li>{{ reason }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Collection Requests (admin only) -->
+    {% if is_admin and item_requests %}
+    <div class="card mb-2">
+      <div class="card-header">Collection Requests</div>
+      <div class="card-body" style="padding: 0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Description</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for req in item_requests %}
+            <tr>
+              <td>{{ req.id }}</td>
+              <td>{{ req.requester_name }}</td>
+              <td style="max-width: 200px; white-space: nowrap;
+                         overflow: hidden; text-overflow: ellipsis;">
+                {{ req.description }}
+              </td>
+              <td>{{ req.request_date[:10] }}</td>
+              <td><span class="badge badge-{{ req.status }}">{{ req.status.title() }}</span></td>
+              <td>
+                {% if req.status == 'pending' %}
+                <form method="post"
+                      action="{{ url_for('admin_update_request', request_id=req.id) }}"
+                      style="display: inline;">
+                  <button name="status" value="approved" class="btn btn-success btn-sm"
+                          data-confirm="Approve this request and mark the item as returned?">
+                    Approve
+                  </button>
+                  <button name="status" value="rejected" class="btn btn-danger btn-sm"
+                          data-confirm="Reject this collection request?">
+                    Reject
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right column: actions -->
+  <div>
+    <div class="card mb-2">
+      <div class="card-header">Actions</div>
+      <div class="card-body" style="display: flex; flex-direction: column; gap: 0.65rem;">
+
+        {% if item.status == 'active' %}
+          <a href="{{ url_for('submit_request', item_id=item.id) }}"
+             class="btn btn-primary w-full" style="justify-content: center;">
+            Submit Collection Request
+          </a>
+        {% elif item.status == 'verification_pending' %}
+          <div class="alert alert-warning" style="margin: 0; font-size: 0.82rem;">
+            A collection request is pending review. No new requests can be submitted.
+          </div>
+        {% elif item.status == 'returned' %}
+          <div class="alert alert-success" style="margin: 0; font-size: 0.82rem;">
+            This item has been returned to its owner.
+          </div>
+        {% elif item.status == 'closed' %}
+          <div class="alert" style="margin: 0; font-size: 0.82rem; background: #f0f0ee; color: #555;">
+            This report has been closed.
+          </div>
+        {% endif %}
+
+        <a href="{{ url_for('matches_page') }}" class="btn btn-secondary w-full"
+           style="justify-content: center;">View All Matches</a>
+
+        {% if item.type == 'lost' %}
+          <a href="{{ url_for('lost_items') }}" class="btn btn-secondary w-full"
+             style="justify-content: center;">Back to Lost Items</a>
+        {% else %}
+          <a href="{{ url_for('found_items') }}" class="btn btn-secondary w-full"
+             style="justify-content: center;">Back to Found Items</a>
+        {% endif %}
+
+        {% if is_admin %}
+        <hr style="border: none; border-top: 1px solid var(--border);">
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0;">
+          Admin: Change Status
+        </p>
+        <form method="post"
+              action="{{ url_for('admin_update_item_status', item_id=item.id) }}">
+          <div class="flex gap-1">
+            <select name="status" style="flex: 1; font-size: 0.82rem;">
+              <option value="active" {{ 'selected' if item.status == 'active' }}>Active</option>
+              <option value="verification_pending" {{ 'selected' if item.status == 'verification_pending' }}>Verification Pending</option>
+              <option value="returned" {{ 'selected' if item.status == 'returned' }}>Returned</option>
+              <option value="closed" {{ 'selected' if item.status == 'closed' }}>Closed</option>
+            </select>
+            <button type="submit" class="btn btn-secondary btn-sm"
+                    data-confirm="Change this item's status?">
+              Update
+            </button>
+          </div>
+        </form>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- No-image placeholder info card -->
+    {% if not item.image_filename %}
+    <div class="card">
+      <div class="card-body text-center" style="padding: 1.5rem; color: var(--text-muted);">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.4;">🖼</div>
+        <p style="font-size: 0.82rem; margin: 0;">No image was uploaded for this report.</p>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}500 — Server Error{% endblock %}
+
+{% block content %}
+<div class="empty-state" style="padding: 5rem 1.5rem;">
+  <h2 style="font-size: 3rem; color: var(--border); margin-bottom: 0.5rem;">500</h2>
+  <h3>Something went wrong</h3>
+  <p>An internal error occurred. Please try again or contact the administrator.</p>
+  <div class="flex gap-1 mt-2" style="justify-content: center;">
+    <a href="{{ url_for('index') }}" class="btn btn-primary">Go to Dashboard</a>
+  </div>
+</div>
+{% endblock %}

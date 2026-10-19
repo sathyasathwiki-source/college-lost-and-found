@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Data Structures Demo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Data Structures — Live Demo</h1>
+  <p>
+    This page shows the current state of the three in-memory data structures
+    running inside the application. Use this page during your FDS demonstration.
+  </p>
+</div>
+
+<!-- ========= 1. Linked List ========= -->
+<div class="ds-section">
+  <h3>1. Singly Linked List — Recent Activity Feed</h3>
+  <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+    Stores the {{ ll_size }} most recent item-activity records in memory.
+    New activity is inserted at the <strong>head</strong> (O(1)).
+    The list is read front-to-back for the dashboard feed.
+  </p>
+
+  {% if ll_items %}
+    <div style="overflow-x: auto; padding-bottom: 0.5rem;">
+      <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem;">
+        <span class="ds-box" style="background: var(--primary); color: white; font-weight: 600;">
+          HEAD
+        </span>
+        <span class="ds-arrow">→</span>
+        {% for entry in ll_items %}
+          <div class="ds-node">
+            <div class="ds-box">
+              {{ entry.get('details', entry.get('item_name', 'Entry')) | truncate(30, True) }}
+            </div>
+            {% if not loop.last %}
+              <span class="ds-arrow">→</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+        <span class="ds-arrow">→</span>
+        <span class="ds-box" style="color: var(--text-muted);">NULL</span>
+      </div>
+    </div>
+
+    <div class="mt-2">
+      <table class="data-table" style="font-size: 0.82rem;">
+        <thead>
+          <tr><th>#</th><th>Action</th><th>Details</th><th>Time</th></tr>
+        </thead>
+        <tbody>
+          {% for entry in ll_items %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ entry.get('action', '—') }}</td>
+            <td>{{ entry.get('details', entry.get('item_name', '—')) }}</td>
+            <td>{{ entry.get('created_at', '—') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state" style="padding: 1.5rem;">
+      <p>No activity recorded yet. Report an item to populate the linked list.</p>
+    </div>
+  {% endif %}
+</div>
+
+<!-- ========= 2. Hash Table ========= -->
+<div class="ds-section">
+  <h3>2. Custom Hash Table — Item Cache</h3>
+  <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+    Maps item IDs → item records. Currently caching <strong>{{ ht_size }}</strong> items.
+    Uses a 128-bucket array with chaining for collision resolution.
+    Average-case lookup: <strong>O(1)</strong>.
+  </p>
+
+  {% if ht_size > 0 %}
+    <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+      Hash function: <code>bucket = abs(hash(str(item_id))) % 128</code>
+    </div>
+    <div class="alert alert-info" style="font-size: 0.82rem;">
+      <strong>{{ ht_size }}</strong> key-value pairs stored across 128 buckets.
+      When two keys map to the same bucket, they are stored as a chain (list)
+      within that bucket — this is called <em>chaining</em>.
+    </div>
+    <div class="flex gap-2" style="flex-wrap: wrap; margin-top: 0.75rem;">
+      <div class="ds-box">Total Items Cached: {{ ht_size }}</div>
+      <div class="ds-box">Bucket Count: 128</div>
+      <div class="ds-box">Load Factor: ~{{ "%.2f"|format(ht_size / 128) }}</div>
+    </div>
+  {% else %}
+    <div class="empty-state" style="padding: 1.5rem;">
+      <p>Hash table is empty. Report an item to populate it.</p>
+    </div>
+  {% endif %}
+</div>
+
+<!-- ========= 3. Queue ========= -->
+<div class="ds-section">
+  <h3>3. FIFO Queue — Collection Request Queue</h3>
+  <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+    Manages pending collection requests in arrival order (FIFO).
+    Currently <strong>{{ queue_items|length }}</strong> request{{ 's' if queue_items|length != 1 else '' }} in the queue.
+    Enqueue/Dequeue both O(1).
+  </p>
+
+  {% if queue_items %}
+    <div style="overflow-x: auto; padding-bottom: 0.5rem;">
+      <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem;">
+        <span class="ds-box" style="background: #27ae60; color: white; font-weight: 600;">
+          FRONT
+        </span>
+        <span class="ds-arrow">→</span>
+        {% for req in queue_items %}
+          <div class="ds-node">
+            <div class="ds-box">
+              Req #{{ req.id }}: {{ req.requester_name }}
+            </div>
+            {% if not loop.last %}
+              <span class="ds-arrow">→</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+        <span class="ds-arrow">→</span>
+        <span class="ds-box" style="background: #c0392b; color: white; font-weight: 600;">
+          REAR
+        </span>
+      </div>
+    </div>
+
+    <div class="mt-2">
+      <table class="data-table" style="font-size: 0.82rem;">
+        <thead>
+          <tr><th>Position</th><th>Request #</th><th>Item</th><th>Requester</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+          {% for req in queue_items %}
+          <tr>
+            <td>{{ loop.index }} {{ '← Dequeue next' if loop.first else '' }}</td>
+            <td>{{ req.id }}</td>
+            <td>
+              <a href="{{ url_for('item_details', item_id=req.item_id) }}">
+                {{ req.item_name }}
+              </a>
+            </td>
+            <td>{{ req.requester_name }}</td>
+            <td>{{ req.request_date[:10] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state" style="padding: 1.5rem;">
+      <p>Queue is empty. No pending collection requests.</p>
+    </div>
+  {% endif %}
+</div>
+
+<!-- ========= Complexity Table ========= -->
+<div class="ds-section">
+  <h3>Time Complexity Reference</h3>
+  <table class="complexity-table">
+    <thead>
+      <tr>
+        <th>Operation</th>
+        <th>Best Case</th>
+        <th>Worst Case</th>
+        <th>Assumption</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Linked List — Insert at head</td><td>O(1)</td><td>O(1)</td><td>Always at head</td></tr>
+      <tr><td>Linked List — Insert at tail</td><td>O(n)</td><td>O(n)</td><td>Must traverse</td></tr>
+      <tr><td>Linked List — Search</td><td>O(1)</td><td>O(n)</td><td>Best: first node</td></tr>
+      <tr><td>Linked List — Delete</td><td>O(1)</td><td>O(n)</td><td>Best: head node</td></tr>
+      <tr><td>Hash Table — Insert</td><td>O(1)</td><td>O(n)</td><td>Good load factor</td></tr>
+      <tr><td>Hash Table — Lookup</td><td>O(1)</td><td>O(n)</td><td>Good load factor</td></tr>
+      <tr><td>Hash Table — Delete</td><td>O(1)</td><td>O(n)</td><td>Good load factor</td></tr>
+      <tr><td>Queue — Enqueue</td><td>O(1)</td><td>O(1)</td><td>Rear pointer</td></tr>
+      <tr><td>Queue — Dequeue</td><td>O(1)</td><td>O(1)</td><td>Front pointer</td></tr>
+      <tr><td>Matching Algorithm</td><td>O(L×F×W)</td><td>O(L×F×W)</td><td>L=lost, F=found, W=words</td></tr>
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

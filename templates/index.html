@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- Welcome Banner -->
+<div class="welcome-banner">
+  <div>
+    <h1>Campus Lost &amp; Found</h1>
+    <p>A centralized platform to report, search, and recover lost belongings on campus.</p>
+  </div>
+  <a href="{{ url_for('report') }}" class="btn btn-primary">Report an Item</a>
+</div>
+
+<!-- Statistics -->
+<div class="stats-grid">
+  <div class="stat-card stat-lost">
+    <div class="stat-number">{{ stats.total_lost }}</div>
+    <div class="stat-label">Lost Reports</div>
+  </div>
+  <div class="stat-card stat-found">
+    <div class="stat-number">{{ stats.total_found }}</div>
+    <div class="stat-label">Found Reports</div>
+  </div>
+  <div class="stat-card stat-returned">
+    <div class="stat-number">{{ stats.total_returned }}</div>
+    <div class="stat-label">Items Returned</div>
+  </div>
+</div>
+
+<!-- Two-column layout for recent items -->
+<div class="form-row" style="gap: 1.5rem;">
+
+  <!-- Recent Lost Reports -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">Recent Lost Reports</span>
+      <a href="{{ url_for('lost_items') }}" class="btn btn-secondary btn-sm">View All</a>
+    </div>
+
+    {% if recent_lost %}
+      <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+        {% for item in recent_lost %}
+        <div class="card">
+          <div class="card-body" style="padding: 0.85rem 1rem;">
+            <div class="flex items-center justify-between gap-1">
+              <div style="min-width: 0;">
+                <a href="{{ url_for('item_details', item_id=item.id) }}"
+                   style="font-weight: 600; font-size: 0.9rem; display: block;"
+                   class="truncate">
+                  {{ item.name }}
+                </a>
+                <small class="text-muted">
+                  {{ item.category }} &mdash; {{ item.location }}
+                </small>
+              </div>
+              <span class="badge badge-{{ item.status }}">
+                {{ item.status.replace('_', ' ').title() }}
+              </span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="padding: 1.5rem;">
+        <p>No lost reports yet. <a href="{{ url_for('report_lost') }}">Report a lost item</a>.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Recent Found Reports -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">Recent Found Reports</span>
+      <a href="{{ url_for('found_items') }}" class="btn btn-secondary btn-sm">View All</a>
+    </div>
+
+    {% if recent_found %}
+      <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+        {% for item in recent_found %}
+        <div class="card">
+          <div class="card-body" style="padding: 0.85rem 1rem;">
+            <div class="flex items-center justify-between gap-1">
+              <div style="min-width: 0;">
+                <a href="{{ url_for('item_details', item_id=item.id) }}"
+                   style="font-weight: 600; font-size: 0.9rem; display: block;"
+                   class="truncate">
+                  {{ item.name }}
+                </a>
+                <small class="text-muted">
+                  {{ item.category }} &mdash; {{ item.location }}
+                </small>
+              </div>
+              <span class="badge badge-{{ item.status }}">
+                {{ item.status.replace('_', ' ').title() }}
+              </span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="padding: 1.5rem;">
+        <p>No found reports yet. <a href="{{ url_for('report_found') }}">Report a found item</a>.</p>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Quick Links -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Quick Links</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
+    <a href="{{ url_for('report_lost') }}" class="btn btn-primary">Report Lost Item</a>
+    <a href="{{ url_for('report_found') }}" class="btn btn-success">Report Found Item</a>
+    <a href="{{ url_for('matches_page') }}" class="btn btn-secondary">View Possible Matches</a>
+    <a href="{{ url_for('lost_items') }}" class="btn btn-secondary">Browse Lost Items</a>
+    <a href="{{ url_for('found_items') }}" class="btn btn-secondary">Browse Found Items</a>
+  </div>
+</div>
+
+<!-- Empty state if no records at all -->
+{% if stats.total_lost == 0 and stats.total_found == 0 %}
+<div class="card mt-2">
+  <div class="card-body text-center" style="padding: 2.5rem;">
+    <div class="empty-icon">📋</div>
+    <h3 style="margin-bottom: 0.5rem;">No records yet</h3>
+    <p class="text-muted" style="max-width: 420px; margin: 0 auto 1.25rem;">
+      The system has no entries. Start by reporting a lost or found item.
+    </p>
+    <div class="flex gap-1" style="justify-content: center;">
+      <a href="{{ url_for('report_lost') }}" class="btn btn-primary">Report Lost Item</a>
+      <a href="{{ url_for('report_found') }}" class="btn btn-success">Report Found Item</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

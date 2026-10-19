@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}About{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>About This Project</h1>
+  <p>Campus Lost &amp; Found — FDS Mini-Project, BTech First Year</p>
+</div>
+
+<div style="max-width: 800px;">
+
+  <!-- Project Info -->
+  <div class="card mb-2">
+    <div class="card-header">Project Overview</div>
+    <div class="card-body">
+      <p>
+        <strong>Campus Lost &amp; Found</strong> is a college lost-and-found management system
+        developed as a mini-project for the <em>Fundamentals of Data Structures (FDS)</em> course,
+        BTech First Year — Pune Institute of Computer Technology (PICT).
+      </p>
+      <p>
+        The system provides a centralized platform for students to report lost belongings,
+        register found items, search records, identify possible matches, and manage returns.
+        It demonstrates fundamental data structures — singly linked list, hash table, and queue —
+        in a real-world application.
+      </p>
+    </div>
+  </div>
+
+  <!-- Technology Stack -->
+  <div class="card mb-2">
+    <div class="card-header">Technology Stack</div>
+    <div class="card-body">
+      <table class="detail-table">
+        <tr><th>Backend</th><td>Python 3, Flask</td></tr>
+        <tr><th>Database</th><td>SQLite (via Python's built-in sqlite3)</td></tr>
+        <tr><th>Frontend</th><td>HTML5, CSS3, Vanilla JavaScript</td></tr>
+        <tr><th>Data Structures</th><td>Custom Singly Linked List, Custom Hash Table, Custom Queue</td></tr>
+        <tr><th>Matching</th><td>Keyword-based text comparison (no AI or ML)</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Data Structures -->
+  <div class="card mb-2">
+    <div class="card-header">Data Structures Used</div>
+    <div class="card-body">
+      <h4 style="margin-bottom: 0.5rem;">1. Singly Linked List</h4>
+      <p>
+        Used for the in-memory <em>activity feed</em> — the list of recent item reports
+        shown on the dashboard. New activity is inserted at the head in O(1). The list
+        is trimmed to 20 entries to keep memory bounded.
+      </p>
+
+      <h4 style="margin-bottom: 0.5rem; margin-top: 1rem;">2. Custom Hash Table</h4>
+      <p>
+        Used as an <em>item cache</em> that maps item IDs to item records.
+        Implemented with a bucket array and chaining for collision resolution.
+        Provides O(1) average-case lookup — much faster than a full database query
+        for items that are frequently accessed (such as on the item details page).
+      </p>
+
+      <h4 style="margin-bottom: 0.5rem; margin-top: 1rem;">3. Queue (Linked-List based)</h4>
+      <p>
+        Used to manage <em>collection requests</em> in FIFO order. When a student
+        submits a collection request, it is enqueued. Administrators process requests
+        from the front of the queue. Both enqueue and dequeue are O(1).
+      </p>
+    </div>
+  </div>
+
+  <!-- Complexity -->
+  <div class="card mb-2">
+    <div class="card-header">Time Complexity Summary</div>
+    <div class="card-body">
+      <table class="complexity-table">
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Average Case</th>
+            <th>Worst Case</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Linked List Insert (head)</td><td>O(1)</td><td>O(1)</td><td>No traversal needed</td></tr>
+          <tr><td>Linked List Search</td><td>O(n)</td><td>O(n)</td><td>May visit all nodes</td></tr>
+          <tr><td>Linked List Delete</td><td>O(n)</td><td>O(n)</td><td>Must find node first</td></tr>
+          <tr><td>Hash Table Insert</td><td>O(1)</td><td>O(n)</td><td>Worst: all keys same bucket</td></tr>
+          <tr><td>Hash Table Lookup</td><td>O(1)</td><td>O(n)</td><td>Good load factor assumed</td></tr>
+          <tr><td>Queue Enqueue</td><td>O(1)</td><td>O(1)</td><td>Rear pointer maintained</td></tr>
+          <tr><td>Queue Dequeue</td><td>O(1)</td><td>O(1)</td><td>Front pointer moved</td></tr>
+          <tr><td>Matching Algorithm</td><td>O(L × F × W)</td><td>O(L × F × W)</td><td>L=lost, F=found, W=avg words</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Team -->
+  <div class="card mb-2">
+    <div class="card-header">Project Information</div>
+    <div class="card-body">
+      <table class="detail-table">
+        <tr><th>Subject</th><td>Fundamentals of Data Structures (FDS)</td></tr>
+        <tr><th>Institution</th><td>Pune Institute of Computer Technology (PICT)</td></tr>
+        <tr><th>Year</th><td>BTech First Year</td></tr>
+        <tr><th>Demo Page</th><td><a href="{{ url_for('ds_demo') }}">Data Structures Live Demo</a></td></tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

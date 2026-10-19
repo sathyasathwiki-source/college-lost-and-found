@@ -1,0 +1,46 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+
+# Database (contains real user data — do not commit)
+instance/app.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploaded images (may contain personal photos — do not commit)
+static/uploads/*
+!static/uploads/.gitkeep
+
+# Environment files with secrets
+.env
+.env.local
+.env.production
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Pytest cache
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml

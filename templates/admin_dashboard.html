@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="flex items-center justify-between" style="flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <h1>Admin Dashboard</h1>
+      <p>Manage collection requests and item statuses.</p>
+    </div>
+    <a href="{{ url_for('admin_logout') }}" class="btn btn-secondary btn-sm">Sign Out</a>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid mb-2">
+  <div class="stat-card stat-lost">
+    <div class="stat-number">{{ stats.total_lost }}</div>
+    <div class="stat-label">Lost Reports</div>
+  </div>
+  <div class="stat-card stat-found">
+    <div class="stat-number">{{ stats.total_found }}</div>
+    <div class="stat-label">Found Reports</div>
+  </div>
+  <div class="stat-card stat-returned">
+    <div class="stat-number">{{ stats.total_returned }}</div>
+    <div class="stat-label">Returned</div>
+  </div>
+</div>
+
+<!-- Queue status -->
+<div class="alert alert-info mb-2" style="font-size: 0.85rem;">
+  <strong>FIFO Queue:</strong>
+  {{ queue_snapshot|length }} pending request{{ 's' if queue_snapshot|length != 1 else '' }} in the queue.
+  {% if queue_snapshot %}
+    Next to process: <strong>{{ queue_snapshot[0].requester_name }}</strong>
+    for item #{{ queue_snapshot[0].item_id }}.
+  {% endif %}
+</div>
+
+<!-- Pending Requests -->
+<div class="section-header mb-1">
+  <span class="section-title">Pending Collection Requests</span>
+  <a href="{{ url_for('collection_requests') }}" class="btn btn-secondary btn-sm">View All</a>
+</div>
+
+{% if pending_requests %}
+<div class="card">
+  <div class="card-body" style="padding: 0;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Item</th>
+          <th>Requester</th>
+          <th>Contact</th>
+          <th>Proof of Ownership</th>
+          <th>Date</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for req in pending_requests %}
+        <tr>
+          <td>{{ req.id }}</td>
+          <td>
+            <a href="{{ url_for('item_details', item_id=req.item_id) }}">
+              {{ req.item_name }}
+            </a>
+            <br>
+            <span class="badge badge-{{ req.item_type }}" style="margin-top: 2px;">
+              {{ req.item_type.title() }}
+            </span>
+          </td>
+          <td>{{ req.requester_name }}</td>
+          <td><small>{{ req.requester_contact }}</small></td>
+          <td style="max-width: 220px; font-size: 0.82rem;">
+            {{ req.description or '—' }}
+          </td>
+          <td>{{ req.request_date[:10] }}</td>
+          <td>
+            <form method="post"
+                  action="{{ url_for('admin_update_request', request_id=req.id) }}"
+                  style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+              <button name="status" value="approved" class="btn btn-success btn-sm"
+                      data-confirm="Approve this request? The item will be marked as returned.">
+                Approve
+              </button>
+              <button name="status" value="rejected" class="btn btn-danger btn-sm"
+                      data-confirm="Reject this collection request?">
+                Reject
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+  <div class="empty-state" style="padding: 2rem;">
+    <p>No pending collection requests. The queue is empty.</p>
+  </div>
+{% endif %}
+
+<!-- Quick Admin Links -->
+<div class="section mt-3">
+  <div class="section-title mb-1">Quick Actions</div>
+  <div class="flex gap-1" style="flex-wrap: wrap;">
+    <a href="{{ url_for('lost_items') }}"          class="btn btn-secondary btn-sm">Browse Lost Items</a>
+    <a href="{{ url_for('found_items') }}"         class="btn btn-secondary btn-sm">Browse Found Items</a>
+    <a href="{{ url_for('matches_page') }}"        class="btn btn-secondary btn-sm">View Matches</a>
+    <a href="{{ url_for('ds_demo') }}"             class="btn btn-secondary btn-sm">Data Structures Demo</a>
+    <a href="{{ url_for('collection_requests') }}" class="btn btn-secondary btn-sm">All Requests</a>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Submit Collection Request{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Submit Collection Request</h1>
+  <p>Provide your details so the item can be verified and returned to you.</p>
+</div>
+
+<div style="max-width: 600px;">
+
+  <!-- Item summary -->
+  <div class="card mb-2">
+    <div class="card-body" style="padding: 0.85rem 1rem;">
+      <div class="flex items-center gap-2">
+        <span class="badge badge-{{ item.type }}">{{ item.type.title() }}</span>
+        <strong>{{ item.name }}</strong>
+        <small class="text-muted">#{{ item.id }}</small>
+      </div>
+      <div class="item-card-meta mt-1">
+        {{ item.category }} &mdash; {{ item.location }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="alert alert-warning mb-2" style="font-size: 0.85rem;">
+        You must be able to <strong>prove ownership</strong> before the item
+        is handed over. Describe how you can identify this as yours.
+      </div>
+
+      <form method="post"
+            action="{{ url_for('submit_request', item_id=item.id) }}"
+            class="validated-form">
+
+        <div class="form-group">
+          <label for="requester_name">Your Full Name <span class="required-mark">*</span></label>
+          <input type="text" id="requester_name" name="requester_name" required
+                 placeholder="e.g. Priya Sharma">
+        </div>
+
+        <div class="form-group">
+          <label for="requester_contact">Contact Information <span class="required-mark">*</span></label>
+          <input type="text" id="requester_contact" name="requester_contact" required
+                 placeholder="Phone number or email address">
+        </div>
+
+        <div class="form-group">
+          <label for="description">
+            Proof of Ownership <span class="required-mark">*</span>
+          </label>
+          <textarea id="description" name="description" rows="4" required
+                    placeholder="Describe unique details that only the owner would know: contents, markings, purchase details, etc."></textarea>
+          <span class="form-help">
+            This information will only be seen by administrators during verification.
+          </span>
+        </div>
+
+        <div class="flex gap-1">
+          <button type="submit" class="btn btn-primary">Submit Request</button>
+          <a href="{{ url_for('item_details', item_id=item.id) }}"
+             class="btn btn-secondary">Cancel</a>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Report a Found Item{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Report a Found Item</h1>
+  <p>Register an item you found on campus so the owner can locate and collect it.</p>
+</div>
+
+<div style="max-width: 680px;">
+  <div class="card">
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data"
+            action="{{ url_for('report_found') }}" class="validated-form">
+
+        <!-- Item Name -->
+        <div class="form-group">
+          <label for="name">Item Name <span class="required-mark">*</span></label>
+          <input type="text" id="name" name="name" required maxlength="150"
+                 value="{{ form.get('name', '') }}"
+                 placeholder="e.g. Black Leather Wallet">
+        </div>
+
+        <!-- Category -->
+        <div class="form-group">
+          <label for="category">Category <span class="required-mark">*</span></label>
+          <select id="category" name="category" required>
+            <option value="">Select a category</option>
+            {% for cat in categories %}
+              <option value="{{ cat }}"
+                {{ 'selected' if form.get('category') == cat else '' }}>
+                {{ cat }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Description -->
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="3"
+                    placeholder="Describe the item — colour, brand, condition, any markings, etc.">{{ form.get('description', '') }}</textarea>
+          <span class="form-help">
+            The more detail you provide, the easier it is to match this with a lost report.
+          </span>
+        </div>
+
+        <!-- Location and Date -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="location">Found Location <span class="required-mark">*</span></label>
+            <input type="text" id="location" name="location" required maxlength="200"
+                   value="{{ form.get('location', '') }}"
+                   placeholder="e.g. Near canteen, Block A entrance">
+          </div>
+          <div class="form-group">
+            <label for="event_date">Date Found <span class="required-mark">*</span></label>
+            <input type="date" id="event_date" name="event_date" required
+                   class="max-today"
+                   value="{{ form.get('event_date', '') }}">
+          </div>
+        </div>
+
+        <!-- Contact info -->
+        <div class="form-group">
+          <label for="contact_info">Your Contact Information <span class="required-mark">*</span></label>
+          <input type="text" id="contact_info" name="contact_info" required
+                 value="{{ form.get('contact_info', '') }}"
+                 placeholder="Phone number or email">
+          <span class="form-help">
+            This will only be shared with administrators and the verified owner.
+          </span>
+        </div>
+
+        <!-- Image Upload -->
+        <div class="form-group">
+          <label for="image">Item Photo (optional)</label>
+          <input type="file" id="image" name="image" accept=".png,.jpg,.jpeg,.gif,.webp">
+          <span class="form-help">PNG, JPG, GIF, or WEBP. Maximum 5 MB.</span>
+          <img id="image-preview" src="" alt="Preview"
+               style="display:none; margin-top: 0.75rem; max-height: 200px;
+                      border-radius: 4px; border: 1px solid var(--border);">
+        </div>
+
+        <!-- Info -->
+        <div class="alert alert-info" style="margin-bottom: 1.25rem;">
+          Please hand over the found item to the college security office or keep it safe
+          until the owner verifies ownership and collects it.
+        </div>
+
+        <!-- Submit -->
+        <div class="flex gap-1">
+          <button type="submit" class="btn btn-success">Submit Report</button>
+          <a href="{{ url_for('found_items') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

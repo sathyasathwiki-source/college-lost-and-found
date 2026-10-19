@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Admin Login{% endblock %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 3rem auto;">
+  <div class="card">
+    <div class="card-header">Administrator Login</div>
+    <div class="card-body">
+      <p class="text-muted mb-2" style="font-size: 0.875rem;">
+        Enter the administrator passcode to manage collection requests and item statuses.
+      </p>
+      <form method="post" action="{{ url_for('admin_login') }}" class="validated-form">
+        <div class="form-group">
+          <label for="passcode">Passcode <span class="required-mark">*</span></label>
+          <input type="password" id="passcode" name="passcode" required
+                 placeholder="Enter admin passcode" autocomplete="current-password">
+          <span class="form-help">
+            Set via the <code>ADMIN_PASSCODE</code> environment variable.
+            Default for development: <code>admin123</code>
+          </span>
+        </div>
+        <div class="flex gap-1">
+          <button type="submit" class="btn btn-primary">Login</button>
+          <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

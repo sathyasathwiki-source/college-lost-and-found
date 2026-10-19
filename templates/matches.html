@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Possible Matches{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Possible Matches</h1>
+  <p>
+    Comparing {{ total_lost }} active lost report{{ 's' if total_lost != 1 else '' }}
+    against {{ total_found }} active found report{{ 's' if total_found != 1 else '' }}.
+  </p>
+</div>
+
+<div class="alert alert-info mb-2" style="font-size: 0.85rem;">
+  <strong>How matching works:</strong> The system compares item names, categories, descriptions,
+  and locations using keyword analysis — not artificial intelligence. Matches are labelled
+  by confidence level. Always verify ownership before handing over an item.
+</div>
+
+{% if all_matches %}
+  {% for group in all_matches %}
+  <div class="card mb-2">
+    <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+      <span>
+        Lost: <a href="{{ url_for('item_details', item_id=group.lost_item.id) }}">
+          {{ group.lost_item.name }}
+        </a>
+        <small class="text-muted">#{{ group.lost_item.id }}</small>
+      </span>
+      <small class="text-muted">{{ group.matches|length }} possible match{{ 'es' if group.matches|length != 1 else '' }}</small>
+    </div>
+    <div class="card-body">
+      <div class="item-card-meta mb-2">
+        {{ group.lost_item.category }} &mdash; Last seen: {{ group.lost_item.location }}
+        &mdash; {{ group.lost_item.event_date }}
+      </div>
+
+      {% for m in group.matches %}
+      <div class="match-card">
+        <div class="flex items-center justify-between gap-1 mb-1" style="flex-wrap: wrap;">
+          <div>
+            <span style="font-size: 0.78rem; color: var(--text-muted);">Found Item:</span>
+            <a href="{{ url_for('item_details', item_id=m.found_item.id) }}"
+               style="font-weight: 600; margin-left: 4px;">
+              {{ m.found_item.name }}
+            </a>
+            <small class="text-muted">(#{{ m.found_item.id }})</small>
+          </div>
+          <span class="match-score
+            {{ 'score-strong' if m.score >= 80
+               else 'score-moderate' if m.score >= 50
+               else 'score-weak' }}">
+            {{ m.label }} (score: {{ m.score }})
+          </span>
+        </div>
+        <div class="item-card-meta mb-1">
+          {{ m.found_item.category }} &mdash; Found at: {{ m.found_item.location }}
+          &mdash; {{ m.found_item.event_date }}
+        </div>
+        {% if m.reasons %}
+        <ul class="match-reasons">
+          {% for reason in m.reasons %}
+            <li>{{ reason }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        <div class="flex gap-1 mt-1">
+          <a href="{{ url_for('item_details', item_id=group.lost_item.id) }}"
+             class="btn btn-secondary btn-sm">Lost Item Details</a>
+          <a href="{{ url_for('item_details', item_id=m.found_item.id) }}"
+             class="btn btn-secondary btn-sm">Found Item Details</a>
+        </div>
+      </div>
+      {% endfor %}
+
+    </div>
+  </div>
+  {% endfor %}
+
+{% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🔗</div>
+    <h3>No possible matches found</h3>
+    <p>
+      There are currently no active lost and found reports that match each other.
+      Matches will appear here as more items are reported.
+    </p>
+    <div class="flex gap-1 mt-2" style="justify-content: center;">
+      <a href="{{ url_for('report_lost') }}"  class="btn btn-primary btn-sm">Report Lost Item</a>
+      <a href="{{ url_for('report_found') }}" class="btn btn-success btn-sm">Report Found Item</a>
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}
