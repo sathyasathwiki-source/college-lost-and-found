@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Search Items{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Search Items</h1>
+  <p>Search across all reported lost and found belongings on campus.</p>
+</div>
+
+<!-- Filters Bar -->
+<div class="filters-bar">
+  <form method="get" action="{{ url_for('search') }}">
+    <div class="filter-group" style="flex: 2; min-width: 220px;">
+      <label for="q">Keyword Search</label>
+      <input type="text" id="q" name="q"
+             value="{{ query }}" placeholder="Search by name, description, or keyword">
+    </div>
+    <div class="filter-group">
+      <label for="type">Item Type</label>
+      <select id="type" name="type">
+        <option value="">All Types</option>
+        <option value="lost" {{ 'selected' if item_type == 'lost' else '' }}>Lost Items</option>
+        <option value="found" {{ 'selected' if item_type == 'found' else '' }}>Found Items</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="category">Category</label>
+      <select id="category" name="category">
+        <option value="">All Categories</option>
+        {% for cat in categories %}
+          <option value="{{ cat }}" {{ 'selected' if category == cat else '' }}>
+            {{ cat }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="location">Location</label>
+      <input type="text" id="location" name="location"
+             value="{{ location }}" placeholder="e.g. Library, Canteen">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-primary btn-sm">Search</button>
+      <a href="{{ url_for('search') }}" class="btn btn-secondary btn-sm">Clear</a>
+    </div>
+  </form>
+</div>
+
+<!-- Search Results Status -->
+{% if query or item_type or category or location %}
+  <div class="mb-2" style="font-size: 0.9rem; color: var(--text-muted);">
+    Found <strong>{{ total }}</strong> result{{ 's' if total != 1 else '' }}
+    {% if query %} for &ldquo;<strong>{{ query }}</strong>&rdquo;{% endif %}
+    {% if item_type %} ({{ item_type.title() }} items){% endif %}
+    {% if category %} in <em>{{ category }}</em>{% endif %}
+    {% if location %} near <em>{{ location }}</em>{% endif %}.
+  </div>
+{% endif %}
+
+<!-- Items Grid -->
+{% if items %}
+  <div class="items-grid">
+    {% for item in items %}
+    <div class="item-card">
+      <!-- Image -->
+      <div class="item-card-image">
+        {% if item.image_filename %}
+          <img src="{{ url_for('uploaded_file', filename=item.image_filename) }}"
+               alt="{{ item.name }}" loading="lazy">
+        {% else %}
+          <span>No image</span>
+        {% endif %}
+      </div>
+
+      <!-- Body -->
+      <div class="item-card-body">
+        <div class="item-card-title">{{ item.name }}</div>
+        <div class="item-card-meta">
+          <span class="badge badge-{{ item.type }}" style="margin-right: 4px;">
+            {{ item.type.title() }}
+          </span>
+          {{ item.category }}
+        </div>
+        {% if item.description %}
+          <p class="text-muted truncate" style="font-size: 0.82rem; margin: 0;">
+            {{ item.description }}
+          </p>
+        {% endif %}
+        <div class="item-card-meta">
+          📍 {{ item.location }}
+        </div>
+        <div class="item-card-meta">
+          📅 {{ item.event_date }}
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="item-card-footer">
+        <span class="badge badge-{{ item.status }}">
+          {{ item.status.replace('_', ' ').title() }}
+        </span>
+        <a href="{{ url_for('item_details', item_id=item.id) }}"
+           class="btn btn-secondary btn-sm">View Details</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Pagination -->
+  {% if total_pages > 1 %}
+  <ul class="pagination" aria-label="Page navigation">
+    {% if page > 1 %}
+      <li>
+        <a href="{{ url_for('search', page=page-1, q=query, type=item_type,
+                   category=category, location=location) }}"
+           aria-label="Previous">&lsaquo;</a>
+      </li>
+    {% endif %}
+
+    {% for p in range(1, total_pages + 1) %}
+      {% if p == page %}
+        <li><span class="current">{{ p }}</span></li>
+      {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+        <li>
+          <a href="{{ url_for('search', page=p, q=query, type=item_type,
+                     category=category, location=location) }}">{{ p }}</a>
+        </li>
+      {% elif p == 4 and page > 5 %}
+        <li><span>&hellip;</span></li>
+      {% endif %}
+    {% endfor %}
+
+    {% if page < total_pages %}
+      <li>
+        <a href="{{ url_for('search', page=page+1, q=query, type=item_type,
+                   category=category, location=location) }}"
+           aria-label="Next">&rsaquo;</a>
+      </li>
+    {% endif %}
+  </ul>
+  {% endif %}
+
+{% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🔍</div>
+    {% if query or item_type or category or location %}
+      <h3>No matching items found</h3>
+      <p>No lost or found records match your search criteria. Try using broader keywords or clearing filters.</p>
+      <div class="flex gap-1 mt-2" style="justify-content: center;">
+        <a href="{{ url_for('search') }}" class="btn btn-secondary btn-sm">Clear Filters</a>
+        <a href="{{ url_for('report_lost') }}" class="btn btn-primary btn-sm">Report Lost Item</a>
+        <a href="{{ url_for('report_found') }}" class="btn btn-success btn-sm">Report Found Item</a>
+      </div>
+    {% else %}
+      <h3>Search Lost &amp; Found Database</h3>
+      <p>Type a keyword or item description above to search active reports, or browse categories.</p>
+      <div class="flex gap-1 mt-2" style="justify-content: center;">
+        <a href="{{ url_for('lost_items') }}" class="btn btn-secondary btn-sm">Browse Lost Items</a>
+        <a href="{{ url_for('found_items') }}" class="btn btn-secondary btn-sm">Browse Found Items</a>
+      </div>
+    {% endif %}
+  </div>
+{% endif %}
+
+{% endblock %}

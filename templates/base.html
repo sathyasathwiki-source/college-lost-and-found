@@ -48,11 +48,16 @@
         <li><a href="{{ url_for('index') }}">Dashboard</a></li>
         <li><a href="{{ url_for('lost_items') }}">Lost Items</a></li>
         <li><a href="{{ url_for('found_items') }}">Found Items</a></li>
-        <li><a href="{{ url_for('report') }}">Report an Item</a></li>
+        <li><a href="{{ url_for('report_lost') }}">Report Lost Item</a></li>
+        <li><a href="{{ url_for('report_found') }}">Report Found Item</a></li>
+        <li><a href="{{ url_for('search') }}">Search</a></li>
         <li><a href="{{ url_for('collection_requests') }}">Collection Requests</a></li>
         <li><a href="{{ url_for('about') }}">About</a></li>
         {% if is_admin %}
         <li><a href="{{ url_for('admin_dashboard') }}">Admin</a></li>
+        <li><a href="{{ url_for('admin_logout') }}" class="mobile-only-link">Sign Out</a></li>
+        {% else %}
+        <li><a href="{{ url_for('admin_login') }}" class="mobile-only-link">Admin Login</a></li>
         {% endif %}
       </ul>
 

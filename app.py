@@ -27,23 +27,49 @@ from matching import find_matches, find_all_matches, get_match_label
 
 class VercelPathMiddleware:
     """
-    WSGI middleware that restores the original requested URL path on Vercel.
-    Vercel internal rewrites route requests to /api/index or /api/index.py
-    and pass the original user-requested path in the X-Matched-Path header.
+    WSGI middleware that normalizes PATH_INFO in serverless environments.
+    When requests are handled by Vercel's serverless function entrypoint (/api/index),
+    this middleware ensures Flask routes using the actual requested client path
+    rather than overwriting it with the rewrite rule's root or destination.
     """
     def __init__(self, wsgi_app):
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
-        matched = environ.get("HTTP_X_MATCHED_PATH")
-        if matched:
-            environ["PATH_INFO"] = matched
-        elif environ.get("PATH_INFO", "").startswith("/api/index.py"):
-            rest = environ["PATH_INFO"][len("/api/index.py"):]
-            environ["PATH_INFO"] = rest if rest.startswith("/") else ("/" + rest if rest else "/")
-        elif environ.get("PATH_INFO", "").startswith("/api/index"):
-            rest = environ["PATH_INFO"][len("/api/index"):]
-            environ["PATH_INFO"] = rest if rest.startswith("/") else ("/" + rest if rest else "/")
+        path_info = environ.get("PATH_INFO", "")
+
+        # If PATH_INFO is prefixed by the serverless function handler, strip it
+        if path_info.startswith("/api/index.py"):
+            rest = path_info[len("/api/index.py"):]
+            path_info = rest if rest.startswith("/") else ("/" + rest if rest else "/")
+        elif path_info.startswith("/api/index"):
+            rest = path_info[len("/api/index"):]
+            path_info = rest if rest.startswith("/") else ("/" + rest if rest else "/")
+
+        # If PATH_INFO evaluated to "/" (or was the entrypoint), check if original URI is available
+        if path_info in ("", "/"):
+            candidate_path = None
+            # Check forwarded URI or raw request URI headers if available
+            raw_uri = (
+                environ.get("HTTP_X_FORWARDED_URI")
+                or environ.get("REQUEST_URI")
+                or environ.get("RAW_URI")
+            )
+            if raw_uri:
+                clean_path = raw_uri.split("?")[0]
+                if clean_path and clean_path != "/" and not clean_path.startswith("/api/index"):
+                    candidate_path = clean_path
+
+            if not candidate_path:
+                matched = environ.get("HTTP_X_MATCHED_PATH")
+                # X-Matched-Path is "/" on rewrite catch-alls; only use if it's a specific route
+                if matched and matched != "/" and not matched.startswith("/api/index"):
+                    candidate_path = matched
+
+            if candidate_path:
+                path_info = candidate_path
+
+        environ["PATH_INFO"] = path_info or "/"
         return self.wsgi_app(environ, start_response)
 
 
@@ -360,6 +386,47 @@ def found_items():
         location=location,
         date_from=date_from,
         date_to=date_to,
+        locations=locations,
+    )
+
+
+# ===========================================================================
+# SEARCH (Lost & Found unified search)
+# ===========================================================================
+
+@app.route("/search")
+def search():
+    query     = request.args.get("q", request.args.get("search", "")).strip()
+    item_type = request.args.get("type", "").strip()
+    category  = request.args.get("category", "").strip()
+    location  = request.args.get("location", "").strip()
+    page      = max(1, int(request.args.get("page", 1)))
+    per_page  = 12
+
+    filter_type = item_type if item_type in ("lost", "found") else None
+
+    items, total = db.get_items(
+        item_type=filter_type,
+        search=query or None,
+        category=category or None,
+        location=location or None,
+        page=page,
+        per_page=per_page,
+    )
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    locations = db.get_locations()
+
+    return render_template(
+        "search.html",
+        items=items,
+        total=total,
+        page=page,
+        total_pages=total_pages,
+        query=query,
+        item_type=item_type,
+        category=category,
+        location=location,
         locations=locations,
     )
 

@@ -211,21 +211,62 @@ class TestPostgresCompatibility(unittest.TestCase):
                 os.environ["DATABASE_URL"] = orig_url
 
     def test_vercel_path_middleware_restores_path(self):
-        """Verify that VercelPathMiddleware restores original path from X-Matched-Path or rewrites."""
+        """Verify that VercelPathMiddleware preserves client routes and does not force dashboard."""
         from app import app
         client = app.test_client()
 
-        # When Vercel sets X-Matched-Path header:
-        resp = client.get('/api/index', headers={'X-Matched-Path': '/'})
+        # 1. When Vercel sets X-Matched-Path: / on home dashboard
+        resp = client.get('/', headers={'X-Matched-Path': '/'})
         self.assertEqual(resp.status_code, 200)
+        self.assertIn("Campus Lost", resp.get_data(as_text=True))
 
-        # When Vercel routes without header:
-        resp2 = client.get('/api/index')
-        self.assertEqual(resp2.status_code, 200)
+        # 2. When Vercel sets X-Matched-Path: / on sub-routes, route MUST NOT be overwritten with /
+        resp_found = client.get('/found-items', headers={'X-Matched-Path': '/'})
+        self.assertEqual(resp_found.status_code, 200)
+        html_found = resp_found.get_data(as_text=True)
+        self.assertIn("Found Items", html_found)
+        self.assertNotIn("Recent Lost Reports", html_found)
 
-        # Sub-route through rewrite:
-        resp3 = client.get('/api/index', headers={'X-Matched-Path': '/about'})
-        self.assertEqual(resp3.status_code, 200)
+        resp_lost = client.get('/lost-items', headers={'X-Matched-Path': '/'})
+        self.assertEqual(resp_lost.status_code, 200)
+        html_lost = resp_lost.get_data(as_text=True)
+        self.assertIn("Lost Items", html_lost)
+        self.assertNotIn("Recent Lost Reports", html_lost)
+
+        resp_search = client.get('/search', headers={'X-Matched-Path': '/'})
+        self.assertEqual(resp_search.status_code, 200)
+        self.assertIn("Search Items", resp_search.get_data(as_text=True))
+
+        resp_req = client.get('/collection-requests', headers={'X-Matched-Path': '/'})
+        self.assertEqual(resp_req.status_code, 200)
+        self.assertIn("Collection Requests", resp_req.get_data(as_text=True))
+
+        resp_rep_l = client.get('/report-lost', headers={'X-Matched-Path': '/'})
+        self.assertEqual(resp_rep_l.status_code, 200)
+        self.assertIn("Report a Lost Item", resp_rep_l.get_data(as_text=True))
+
+        resp_rep_f = client.get('/report-found', headers={'X-Matched-Path': '/'})
+        self.assertEqual(resp_rep_f.status_code, 200)
+        self.assertIn("Report a Found Item", resp_rep_f.get_data(as_text=True))
+
+        # 3. Direct access to serverless entrypoint /api/index
+        resp_root = client.get('/api/index')
+        self.assertEqual(resp_root.status_code, 200)
+
+        # 4. Entrypoint prefix stripping (/api/index/about -> /about)
+        resp_prefix = client.get('/api/index/about')
+        self.assertEqual(resp_prefix.status_code, 200)
+        self.assertIn("About This Project", resp_prefix.get_data(as_text=True))
+
+        # 5. Reverse proxy X-Forwarded-Uri header on /api/index
+        resp_fwd = client.get('/api/index', headers={'X-Forwarded-Uri': '/found-items'})
+        self.assertEqual(resp_fwd.status_code, 200)
+        self.assertIn("Found Items", resp_fwd.get_data(as_text=True))
+
+        # 6. Specific X-Matched-Path (non-root) on /api/index
+        resp_matched = client.get('/api/index', headers={'X-Matched-Path': '/about'})
+        self.assertEqual(resp_matched.status_code, 200)
+        self.assertIn("About This Project", resp_matched.get_data(as_text=True))
 
 
 if __name__ == "__main__":

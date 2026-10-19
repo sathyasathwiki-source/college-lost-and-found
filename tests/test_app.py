@@ -285,6 +285,40 @@ class TestFlaskRoutes(unittest.TestCase):
         resp = self.client.get('/collection-requests')
         self.assertEqual(resp.status_code, 200)
 
+    def test_search_page(self):
+        resp = self.client.get('/search')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'Search Items', resp.data)
+
+        # Search with query
+        resp_q = self.client.get('/search?q=Blue')
+        self.assertEqual(resp_q.status_code, 200)
+
+        # Search with filters
+        resp_f = self.client.get('/search?type=lost&category=Electronics')
+        self.assertEqual(resp_f.status_code, 200)
+
+    def test_all_navigation_routes_distinct(self):
+        """Ensure all primary navigation links render their distinct expected pages, not the dashboard."""
+        routes_and_expected = [
+            ('/', 'Campus Lost &amp; Found'),
+            ('/lost-items', '<h1>Lost Items</h1>'),
+            ('/found-items', '<h1>Found Items</h1>'),
+            ('/report-lost', 'Report a Lost Item'),
+            ('/report-found', 'Report a Found Item'),
+            ('/search', '<h1>Search Items</h1>'),
+            ('/collection-requests', '<h1>Collection Requests</h1>'),
+            ('/about', 'About This Project'),
+        ]
+        for route, expected_text in routes_and_expected:
+            resp = self.client.get(route)
+            self.assertEqual(resp.status_code, 200, f"Route {route} failed with {resp.status_code}")
+            html = resp.get_data(as_text=True)
+            self.assertIn(expected_text, html, f"Expected '{expected_text}' in route '{route}'")
+            if route != '/':
+                # Verify it does NOT render the dashboard
+                self.assertNotIn('Recent Lost Reports', html, f"Route '{route}' incorrectly rendered the Dashboard")
+
     def test_404_for_missing_item(self):
         resp = self.client.get('/item/999999')
         self.assertEqual(resp.status_code, 404)
