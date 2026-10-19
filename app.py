@@ -70,6 +70,15 @@ def init_app():
     """Initialize database and in-memory data structures on startup."""
     global _initialized
     db.init_db()
+    # In Vercel demo mode without DATABASE_URL, auto-seed with sample data if empty
+    if db.is_temporary_storage():
+        try:
+            stats = db.get_dashboard_stats()
+            if stats["total_lost"] == 0 and stats["total_found"] == 0:
+                import seed_data
+                seed_data.run_seed()
+        except Exception as exc:
+            app.logger.warning(f"Demo auto-seed skipped: {exc}")
     _rebuild_data_structures()
     _initialized = True
 
@@ -77,6 +86,8 @@ def init_app():
 @app.before_request
 def ensure_initialized():
     """Ensure database schema and cache are initialized in serverless environments."""
+    if request.path.startswith("/static/"):
+        return
     global _initialized
     if not _initialized:
         init_app()
@@ -184,6 +195,7 @@ def inject_globals():
         "current_year": datetime.now().year,
         "is_admin": is_admin(),
         "categories": CATEGORIES,
+        "is_temporary_storage": db.is_temporary_storage(),
     }
 
 

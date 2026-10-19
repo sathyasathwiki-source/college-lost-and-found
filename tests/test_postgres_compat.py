@@ -179,8 +179,8 @@ class TestPostgresCompatibility(unittest.TestCase):
         finally:
             del os.environ["DATABASE_URL"]
 
-    def test_vercel_missing_database_url_raises_error(self):
-        """On Vercel, if DATABASE_URL is missing, get_connection must raise clear DatabaseConnectionError."""
+    def test_vercel_missing_database_url_fallback(self):
+        """On Vercel, if DATABASE_URL is missing, it falls back to temporary SQLite storage."""
         orig_vercel = os.environ.get("VERCEL")
         orig_testing = os.environ.get("TESTING")
         orig_url = os.environ.get("DATABASE_URL")
@@ -192,9 +192,10 @@ class TestPostgresCompatibility(unittest.TestCase):
             if "DATABASE_URL" in os.environ:
                 del os.environ["DATABASE_URL"]
 
-            with self.assertRaises(DatabaseConnectionError) as cm:
-                db.get_connection()
-            self.assertIn("DATABASE_URL", str(cm.exception))
+            self.assertTrue(db.is_temporary_storage())
+            conn = db.get_connection()
+            self.assertIsNotNone(conn)
+            conn.close()
         finally:
             if orig_vercel is not None:
                 os.environ["VERCEL"] = orig_vercel

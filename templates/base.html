@@ -68,6 +68,16 @@
     </div>
   </nav>
 
+  {% if is_temporary_storage %}
+  <div style="background-color: #eff6ff; border-bottom: 1px solid #bfdbfe; color: #1e40af; padding: 0.65rem 1rem; font-size: 0.875rem; text-align: center;">
+    <div class="container" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap;">
+      <span>ℹ️ <strong>Demo Mode:</strong> Running with temporary SQLite storage on Vercel.</span>
+      <span style="color: #3b82f6;">•</span>
+      <span>To persist data across serverless restarts, add <code>DATABASE_URL</code> in Vercel Project Settings.</span>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- =====================================================================
        FLASH MESSAGES
        ===================================================================== -->

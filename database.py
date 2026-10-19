@@ -12,6 +12,7 @@ All queries use parameterized statements to prevent SQL injection.
 import os
 import re
 import sqlite3
+import tempfile
 from datetime import datetime, date
 
 
@@ -45,6 +46,14 @@ def is_postgres():
     return bool(get_db_url())
 
 
+def is_temporary_storage():
+    """
+    Return True if running in a serverless environment (e.g. Vercel)
+    without a persistent PostgreSQL database configured.
+    """
+    return bool(os.environ.get("VERCEL") and not is_postgres())
+
+
 def get_default_db_path():
     """
     Determine a safe default path for SQLite.
@@ -55,7 +64,7 @@ def get_default_db_path():
         return custom_path
     if os.environ.get("VERCEL"):
         # Filesystems outside /tmp are read-only on Vercel
-        return os.path.join("/tmp", "app.db")
+        return os.path.join(tempfile.gettempdir() if os.name == "nt" else "/tmp", "app.db")
     return os.path.join(os.path.dirname(__file__), "instance", "app.db")
 
 
@@ -234,14 +243,6 @@ def get_connection():
                 "Please check your DATABASE_URL in Vercel project environment variables."
             ) from exc
     else:
-        # Check if running on Vercel without DATABASE_URL
-        if os.environ.get("VERCEL") and not os.environ.get("TESTING"):
-            raise DatabaseConnectionError(
-                "DATABASE_URL environment variable is missing in the Vercel serverless environment. "
-                "Vercel serverless filesystems are read-only and ephemeral, so persistent SQLite storage is unavailable. "
-                "Please configure DATABASE_URL in your Vercel Project Settings -> Environment Variables."
-            )
-
         try:
             db_dir = os.path.dirname(os.path.abspath(DB_PATH))
             if db_dir:
@@ -259,6 +260,7 @@ def get_connection():
             raise DatabaseConnectionError(
                 f"Failed to connect to SQLite database at '{DB_PATH}': {exc}"
             ) from exc
+
 
 
 def init_db():
@@ -380,10 +382,18 @@ def init_db():
 
         conn.commit()
     except Exception as exc:
-        conn.rollback()
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         raise DatabaseConnectionError(f"Failed to initialize database schema: {exc}") from exc
     finally:
-        conn.close()
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 # ===========================================================================
